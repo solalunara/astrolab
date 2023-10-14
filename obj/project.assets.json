@@ -13,11 +13,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/home/fvp/Downloads/temp/program/program.csproj",
+      "projectUniqueName": "/home/fvp/prog/astrolab/program.csproj",
       "projectName": "program",
-      "projectPath": "/home/fvp/Downloads/temp/program/program.csproj",
+      "projectPath": "/home/fvp/prog/astrolab/program.csproj",
       "packagesPath": "/home/fvp/.nuget/packages/",
-      "outputPath": "/home/fvp/Downloads/temp/program/obj/",
+      "outputPath": "/home/fvp/prog/astrolab/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "/home/fvp/.nuget/NuGet/NuGet.Config"

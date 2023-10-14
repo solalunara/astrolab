@@ -19,7 +19,7 @@ var DUList = GetListData( "DUList" );
 
 for ( int i = 0; i < DUList.Length; ++i )
 {
-    var sr = new StreamReader( "../" + DUList[ i ] + ".txt" );
+    var sr = new StreamReader( "../data/" + DUList[ i ] + ".txt" );
     string data = sr.ReadToEnd();
     string[] data_split = data.Split( new char[]{' ', '\n'}, StringSplitOptions.RemoveEmptyEntries );
     (float x,float y)[] xydata = new (float,float)[ data_split.Length / 2 ];
@@ -42,9 +42,9 @@ for ( int i = 0; i < DUList.Length; ++i )
     //separate the centre of the data from the sides
     //can't use a .where() because that might include dips
     float cutoff = xydata.Max( ( (float x, float y) var ) => var.y ) / 4f;
-    ((float x, float y) LeftCut_pt, (float x, float y) RightCut_pt) = SideCreep( xydata, cutoff, interpolate: false );
-    int LeftCut = xydata.ToList().IndexOf( LeftCut_pt );
-    int RightCut = xydata.ToList().IndexOf( RightCut_pt );
+    ((float x, float y, int i) LeftCut_pt, (float x, float y, int i) RightCut_pt) = SideCreep( xydata, cutoff );
+    int LeftCut = LeftCut_pt.i;
+    int RightCut = RightCut_pt.i;
     (float, float)[] SideData_Raw = new (float, float)[ 0 ];
     if ( LeftCut != -1 )
         SideData_Raw = SideData_Raw.Union( xydata[ ..LeftCut ] ).ToArray();
@@ -61,30 +61,46 @@ for ( int i = 0; i < DUList.Length; ++i )
     SideVariance /= SideData.Length;
     float SideStdDev = MathF.Sqrt( SideVariance );
 
-    //calculate HWHM using same creep method
+    //seperate out all the distributions
     float HalfMax = xydata.Max( ( (float x, float y) var ) => var.y ) / 2f;
-    ((float x, float y) LeftHalf, (float x, float y) RightHalf) = SideCreep( xydata, HalfMax, interpolate: true );
-    float FWHM = LeftHalf.x - RightHalf.x;
-    float HWHM = FWHM / 2;
+    float HWHM_Total, HWHM_Error_Total;
+    HWHM_Total = HWHM_Error_Total = 0f;
+    int N = 0;
+    foreach ( var distribution in GetDistributions( xydata, HalfMax ) )
+    {
+        //calculate HWHM using same creep method
+        ((float x, float y, int i) LeftHalf, (float x, float y, int i) RightHalf) = SideCreep( distribution, HalfMax );
+        float FWHM = LeftHalf.x - RightHalf.x;
+        float HWHM = FWHM / 2;
 
-    //Shift max by background error and find new HWHM
-    float HalfMaxShifted = HalfMax - SideStdDev;
-    ((float x, float y) LeftHalfShift, (float x, float y) RightHalfShift) = SideCreep( xydata, HalfMaxShifted, interpolate: true );
-    float FWHM_Shifted = LeftHalfShift.x - RightHalfShift.x;
-    float HWHM_Shifted = FWHM_Shifted / 2;
+        //Shift max by background error and find new HWHM
+        float HalfMaxShifted = HalfMax - SideStdDev;
+        ((float x, float y, int i) LeftHalfShift, (float x, float y, int i) RightHalfShift) = SideCreep( distribution, HalfMaxShifted );
+        float FWHM_Shifted = LeftHalfShift.x - RightHalfShift.x;
+        float HWHM_Shifted = FWHM_Shifted / 2;
 
-    //Now we can use the difference as the error in the HWHM
-    float HWHM_Error = MathF.Abs( HWHM_Shifted - HWHM );
+        //Now we can use the difference as the error in the HWHM
+        float HWHM_Error = MathF.Abs( HWHM_Shifted - HWHM );
 
-    Console.WriteLine( DUList[ i ] + " - HWHM " + HWHM + " +/- " + HWHM_Error );
+        HWHM_Total += HWHM;
+        HWHM_Error_Total += HWHM_Error * HWHM_Error;
+        ++N;
+    }
+    HWHM_Total /= N;
+    HWHM_Error_Total /= N;
+    HWHM_Error_Total = MathF.Sqrt( HWHM_Error_Total );
+
+
+
+    Console.WriteLine( DUList[ i ] + " - HWHM " + HWHM_Total + " +/- " + HWHM_Error_Total );
     sr.Close();
 }
 
-static ((float x, float y) left, (float x, float y) right) SideCreep( (float x, float y)[] xydata, float Value, bool interpolate )
+static ((float x, float y, int i) left, (float x, float y, int i) right) SideCreep( (float x, float y)[] xydata, float Value )
 {
     int left, right;
     left = right = -1;
-    for ( int j = 0; j < xydata.Length / 2; ++j )
+    for ( int j = 0; j < xydata.Length; ++j )
     {
         if ( xydata[ j ].y > Value )
         {
@@ -97,9 +113,10 @@ static ((float x, float y) left, (float x, float y) right) SideCreep( (float x, 
     float xdiff_l = xydata[ left - 1 ].x - xydata[ left ].x;
     float part_ydiff_l = Value - xydata[ left - 1 ].y;
     float frac_l = part_ydiff_l / ydiff_l;
-    (float x, float y) leftpt = (frac_l * xdiff_l + xydata[ left - 1 ].x, frac_l * ydiff_l + xydata[ left - 1 ].y);
+    frac_l = (frac_l < -1) ? -1 : ((frac_l > 1) ? 1 : frac_l); //clamp
+    (float x, float y, int i) leftpt = (frac_l * xdiff_l + xydata[ left - 1 ].x, frac_l * ydiff_l + xydata[ left - 1 ].y, left);
 
-    for ( int j = xydata.Length - 1; j >= xydata.Length / 2; --j )
+    for ( int j = xydata.Length - 1; j >= 0; --j )
     {
         if ( xydata[ j ].y > Value )
         {
@@ -112,9 +129,32 @@ static ((float x, float y) left, (float x, float y) right) SideCreep( (float x, 
     float xdiff_r = xydata[ right ].x - xydata[ right + 1 ].x;
     float part_ydiff_r = Value - xydata[ right + 1 ].y;
     float frac_r = part_ydiff_r / ydiff_r;
-    (float x, float y) rightpt = (frac_r * xdiff_r + xydata[ right + 1 ].x, frac_r * ydiff_r + xydata[ right + 1 ].y);
+    frac_r = (frac_r < -1) ? -1 : ((frac_r > 1) ? 1 : frac_r); //clamp
+    (float x, float y, int i) rightpt = (frac_r * xdiff_r + xydata[ right + 1 ].x, frac_r * ydiff_r + xydata[ right + 1 ].y, right);
 
-    if ( interpolate )
-        return (leftpt, rightpt);
-    else return (xydata[ left ], xydata[ right ]);
+    return (leftpt, rightpt);
+}
+
+static IEnumerable<(float x, float y)[]> GetDistributions( (float x, float y)[] xydata, float Value )
+{
+    for ( int i = 0; i < xydata.Length; ++i )
+    {
+        List<(float x, float y)> Distribution = new();
+        //check for beginning of distribution
+        if ( xydata[ i ].y > Value && ( ( i > 0 && xydata[ i - 1 ].y <= Value ) || i == 0 ) )
+        {
+            //add all of distribution above value (and ends)
+            if ( i > 0 )
+                Distribution.Add( xydata[ i - 1 ] );
+
+            while ( i < xydata.Length && xydata[ i ].y > Value )
+                Distribution.Add( xydata[ i++ ] );
+
+            Distribution.Add( xydata[ i-- ] ); //set to one below so for loop inc doesn't mess us up
+
+            //elliminate noise caused by individual points
+            if ( Distribution.Count > 3 )
+                yield return Distribution.ToArray();
+        }
+    }
 }
