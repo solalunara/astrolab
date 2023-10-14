@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "xL1uiNF2tG6MG5Zr+POQ/DHuPehmaYys9cwkLOw9R9iXsC26xwOb5GZwYqlgVL6Mj1zO82Sq1rR2LTfM7QEBBw==",
+  "success": true,
+  "projectFilePath": "/home/fvp/Downloads/temp/program/program.csproj",
+  "expectedPackageFiles": [
+    "/home/fvp/.nuget/packages/microsoft.aspnetcore.app.ref/7.0.11/microsoft.aspnetcore.app.ref.7.0.11.nupkg.sha512"
+  ],
+  "logs": []
+}
