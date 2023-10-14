@@ -18,12 +18,12 @@ static string[] GetListData( string Path )
 }
 
 
-var DKList = GetListData( "DKList" );
-var DUList = GetListData( "DUList" );
 
 #if KnownDistances
+var DKList = GetListData( "DKList" );
 for ( int i = 0; i < DKList.Length; ++i )
 #else
+var DUList = GetListData( "DUList" );
 for ( int i = 0; i < DUList.Length; ++i )
 #endif
 {
