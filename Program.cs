@@ -1,4 +1,7 @@
-﻿static string[] GetListData( string Path )
+﻿//#define KnownDistances
+// comment/uncomment to use known vs unknown distances
+
+static string[] GetListData( string Path )
 {
     string[] List;
     using ( var List_sr = new StreamReader( Path ) )
@@ -14,12 +17,34 @@
     return List;
 }
 
+
 var DKList = GetListData( "DKList" );
 var DUList = GetListData( "DUList" );
 
+#if KnownDistances
+for ( int i = 0; i < DKList.Length; ++i )
+#else
 for ( int i = 0; i < DUList.Length; ++i )
+#endif
 {
-    var sr = new StreamReader( "../data/" + DUList[ i ] + ".txt" );
+    StreamReader sr;
+    try 
+    {
+#if KnownDistances
+        sr = new StreamReader( "../data/" + DKList[ i ] + ".txt" );
+#else
+        sr = new StreamReader( "../data/" + DUList[ i ] + ".txt" );
+#endif
+    }
+    catch
+    {
+#if KnownDistances
+        Console.WriteLine( "No data availible for " + DKList[ i ] );
+#else
+        Console.WriteLine( "No data availible for " + DUList[ i ] );
+#endif
+        continue;
+    }
     string data = sr.ReadToEnd();
     string[] data_split = data.Split( new char[]{' ', '\n'}, StringSplitOptions.RemoveEmptyEntries );
     (float x,float y)[] xydata = new (float,float)[ data_split.Length / 2 ];
@@ -92,7 +117,11 @@ for ( int i = 0; i < DUList.Length; ++i )
 
 
 
+#if KnownDistances
+    Console.WriteLine( DKList[ i ] + " - HWHM " + HWHM_Total + " +/- " + HWHM_Error_Total );
+#else
     Console.WriteLine( DUList[ i ] + " - HWHM " + HWHM_Total + " +/- " + HWHM_Error_Total );
+#endif
     sr.Close();
 }
 
