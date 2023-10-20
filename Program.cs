@@ -1,4 +1,4 @@
-﻿//#define KnownDistances
+﻿#define KnownDistances
 // comment/uncomment to use known vs unknown distances
 
 static string[] GetListData( string Path )
@@ -88,39 +88,39 @@ for ( int i = 0; i < DUList.Length; ++i )
 
     //seperate out all the distributions
     float HalfMax = xydata.Max( ( (float x, float y) var ) => var.y ) / 2f;
-    float HWHM_Total, HWHM_Error_Total;
-    HWHM_Total = HWHM_Error_Total = 0f;
+    float FWHM_Total, FWHM_Error_Total;
+    FWHM_Total = FWHM_Error_Total = 0f;
     int N = 0;
     foreach ( var distribution in GetDistributions( xydata, HalfMax ) )
     {
         //calculate HWHM using same creep method
         ((float x, float y, int i) LeftHalf, (float x, float y, int i) RightHalf) = SideCreep( distribution, HalfMax );
         float FWHM = LeftHalf.x - RightHalf.x;
-        float HWHM = FWHM / 2;
 
         //Shift max by background error and find new HWHM
         float HalfMaxShifted = HalfMax - SideStdDev;
         ((float x, float y, int i) LeftHalfShift, (float x, float y, int i) RightHalfShift) = SideCreep( distribution, HalfMaxShifted );
         float FWHM_Shifted = LeftHalfShift.x - RightHalfShift.x;
-        float HWHM_Shifted = FWHM_Shifted / 2;
 
-        //Now we can use the difference as the error in the HWHM
-        float HWHM_Error = MathF.Abs( HWHM_Shifted - HWHM );
+        //Now we can use the difference as the error in the FWHM
+        float FWHM_Error = MathF.Abs( FWHM_Shifted - FWHM );
 
-        HWHM_Total += HWHM;
-        HWHM_Error_Total += HWHM_Error * HWHM_Error;
+        FWHM_Total += FWHM;
+        FWHM_Error_Total += FWHM_Error * FWHM_Error;
         ++N;
     }
-    HWHM_Total /= N;
-    HWHM_Error_Total /= N;
-    HWHM_Error_Total = MathF.Sqrt( HWHM_Error_Total );
+    FWHM_Total /= N;
+    FWHM_Error_Total /= N;
+    FWHM_Error_Total = MathF.Sqrt( FWHM_Error_Total );
+    if ( N > 1 )
+        throw new Exception( "??? impossible state ???" );
 
 
 
 #if KnownDistances
-    Console.WriteLine( DKList[ i ] + " - HWHM " + HWHM_Total + " +/- " + HWHM_Error_Total );
+    Console.WriteLine( DKList[ i ] + " - FWHM " + FWHM_Total + " +/- " + FWHM_Error_Total );
 #else
-    Console.WriteLine( DUList[ i ] + " - HWHM " + HWHM_Total + " +/- " + HWHM_Error_Total );
+    Console.WriteLine( DUList[ i ] + " - FWHM " + FWHM_Total + " +/- " + FWHM_Error_Total );
 #endif
     sr.Close();
 }
@@ -166,6 +166,9 @@ static ((float x, float y, int i) left, (float x, float y, int i) right) SideCre
 
 static IEnumerable<(float x, float y)[]> GetDistributions( (float x, float y)[] xydata, float Value )
 {
+    ((float x, float y, int i) left, (float x, float y, int i) right) = SideCreep( xydata, Value );
+    yield return xydata[ (left.i - 1)..(right.i + 1) ];
+    /*
     for ( int i = 0; i < xydata.Length; ++i )
     {
         List<(float x, float y)> Distribution = new();
@@ -186,4 +189,5 @@ static IEnumerable<(float x, float y)[]> GetDistributions( (float x, float y)[] 
                 yield return Distribution.ToArray();
         }
     }
+    */
 }
