@@ -1,4 +1,4 @@
-﻿#define KnownDistances
+﻿//#define KnownDistances
 // comment/uncomment to use known vs unknown distances
 
 static string[] GetListData( string Path )
@@ -31,9 +31,9 @@ for ( int i = 0; i < DUList.Length; ++i )
     try 
     {
 #if KnownDistances
-        sr = new StreamReader( "../data/" + DKList[ i ] + ".txt" );
+        sr = new StreamReader( "data/" + DKList[ i ] + ".txt" );
 #else
-        sr = new StreamReader( "../data/" + DUList[ i ] + ".txt" );
+        sr = new StreamReader( "data/" + DUList[ i ] + ".txt" );
 #endif
     }
     catch
