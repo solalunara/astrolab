@@ -1,4 +1,7 @@
-﻿using MathNet.Numerics;
+﻿//#define KnownDistances
+// comment to read python output, uncomment to generate python input
+
+using MathNet.Numerics;
 using MathNet.Numerics.LinearAlgebra.Double;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.Optimization;
@@ -181,71 +184,49 @@ static statval GetDistance( statval distance_modulus )
     return ((float)dist, (float)dist_err);
 }
 
-Vector<double> Model( Vector<double> parameters, Vector<double> x )
-{
-    var y = CreateVector.Dense<double>( x.Count );
-    for ( int i = 0; i < x.Count; ++i )
-        y[ i ] = parameters[ 0 ] * Math.Pow( x[ i ], parameters[ 1 ] );
-    return y;
-}
-
-
 /// MAIN CODE ///
 var inclinations = GetStatVarData( "inclinations" );
 var fluxdensities = GetStatVarData( "fluxdensities" );
 var distance_moduli = GetStatVarData( "distance-moduli" );
 
 //data manip
-List<double> Luminosities = new();
-List<double> Luminosities_err = new();
-List<double> Velocities = new();
-List<double> Velocities_err = new();
+#if KnownDistances
+StreamWriter Outfile = new( "data.csv" );
+Outfile.WriteLine( "RotVelocity - RotVelocity Error - Luminosity - Luminosity Error" );
+
 foreach ( (pt[] x, string name) in GetXYDataForEachFile( GetListData( "DKList" ) ) )
+#else
+statval A = (49.96299183752404f, 10.749361084300439f);
+statval B = (2.603023285204086f, 2.0746908262640886f);
+foreach ( (pt[] x, string name) in GetXYDataForEachFile( GetListData( "DUList" ) ) )
+#endif
 {
     statval HWHM = GetHWHM( x, GetStdDev( x ) );
     statval incl = inclinations[ name ];
     statval RotSpeed = GetRotSpeed( HWHM, incl );
     statval FluxDensity = fluxdensities[ name ];
+#if KnownDistances
     statval dist = GetDistance( distance_moduli[ name ] );
-
     double lum = FluxDensity.val * 4d * Math.PI * dist.val * dist.val;
     double lum_err = lum * Math.Sqrt( Math.Pow( FluxDensity.err / FluxDensity.val, 2 ) + Math.Pow( dist.err / dist.val, 2 ) );
 
-    Luminosities.Add( lum / 1e25d );
-    Luminosities_err.Add( lum_err / 1e25d );
-    Velocities.Add( RotSpeed.val );
-    Velocities_err.Add( RotSpeed.err );
+    Outfile.WriteLine( RotSpeed.val + "," + RotSpeed.err + "," + lum + "," + lum_err );
 
-    Console.WriteLine( name + " - HWHM " + HWHM.val + " +/- " + HWHM.err );
-}
-
-//nonlinear fit
-var start = new DenseVector( new double[] { 1.0, 1.0 } );
-var objective = ObjectiveFunction.NonlinearModel( Model, new DenseVector( Velocities.ToArray() ), new DenseVector( Luminosities.ToArray() ) );
-var solver = new LevenbergMarquardtMinimizer( maximumIterations: -1 );
-var result = solver.FindMinimum( objective, start );
-
-statval A = ((float)result.MinimizingPoint[ 0 ], (float)result.StandardErrors[ 0 ]);
-statval B = ((float)result.MinimizingPoint[ 1 ], (float)result.StandardErrors[ 1 ]);
-
-foreach ( (pt[] x, string name) in GetXYDataForEachFile( GetListData( "DUList" ) ) )
-{
-    statval HWHM = GetHWHM( x, GetStdDev( x ) );
-    statval incl = inclinations[ name ];
-    statval RotSpeed = GetRotSpeed( HWHM, incl );
-    statval FluxDensity = fluxdensities[ name ];
-
-    double lum = A.val * Math.Pow( RotSpeed.val, B.val ) * 1e25d;
-    double lum_err = Math.Pow( lum * A.err / A.val, 2 ) + Math.Pow( lum * B.val * RotSpeed.err / RotSpeed.val, 2 ) + Math.Pow( Math.Log( RotSpeed.val * 1e3f ) * lum * B.err, 2 );
-    lum_err = Math.Sqrt( lum_err );
+#else
+    double lum = Math.Exp( A.val ) * Math.Pow( RotSpeed.val, B.val );
+    double lum_err = Math.Pow( A.err, 2 ) + Math.Pow( RotSpeed.err * B.val / RotSpeed.val, 2 ) + Math.Pow( B.err * Math.Log( RotSpeed.val ), 2 );
+    lum_err = lum * Math.Sqrt( lum_err );
 
     double dist = Math.Sqrt( 4 * Math.PI * lum / FluxDensity.val );
     double dist_err = Math.Pow( .5f * dist * lum_err / lum, 2 ) + Math.Pow( .5f * dist * FluxDensity.err / FluxDensity.val, 2 );
     dist_err = Math.Sqrt( dist_err );
 
-
-    Console.WriteLine( name + " - HWHM " + HWHM.val + " +/- " + HWHM.err );
+    Console.WriteLine( name + ": " + dist + " +/- " + dist_err );
+#endif
 }
+#if KnownDistances
+Outfile.Close();
+#endif
 
 // structures
 struct pt
