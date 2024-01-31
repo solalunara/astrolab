@@ -172,6 +172,7 @@ static statval GetRotSpeed( statval HWHM, statval incl )
     return (RotSpeed, RotSpeed_Error);
 }
 
+#if KnownDistances
 static statval GetDistance( statval distance_modulus )
 {
     double dist = Math.Pow( 10, 1 + distance_modulus.val / 5d );
@@ -183,6 +184,7 @@ static statval GetDistance( statval distance_modulus )
 
     return ((float)dist, (float)dist_err);
 }
+#endif
 
 /// MAIN CODE ///
 var inclinations = GetStatVarData( "inclinations" );
@@ -192,12 +194,13 @@ var distance_moduli = GetStatVarData( "distance-moduli" );
 //data manip
 #if KnownDistances
 StreamWriter Outfile = new( "data.csv" );
-Outfile.WriteLine( "RotVelocity - RotVelocity Error - Luminosity - Luminosity Error" );
-
+Outfile.WriteLine( "Data - RotVelocity - RotVelocity Error - Luminosity - Luminosity Error" );
 foreach ( (pt[] x, string name) in GetXYDataForEachFile( GetListData( "DKList" ) ) )
 #else
-statval A = (49.96299183752404f, 10.749361084300439f);
-statval B = (2.603023285204086f, 2.0746908262640886f);
+StreamWriter Outfile = new( "data_predicted.csv" );
+Outfile.WriteLine( "Data - RotVelocity - RotVelocity Error - Luminosity - Luminosity Error" );
+statval A = (22927942737088.72f, 31820596411879.11f);
+statval B = (6.203778507422214f, 0.2678953507033762f);
 foreach ( (pt[] x, string name) in GetXYDataForEachFile( GetListData( "DUList" ) ) )
 #endif
 {
@@ -210,23 +213,27 @@ foreach ( (pt[] x, string name) in GetXYDataForEachFile( GetListData( "DUList" )
     double lum = FluxDensity.val * 4d * Math.PI * dist.val * dist.val;
     double lum_err = lum * Math.Sqrt( Math.Pow( FluxDensity.err / FluxDensity.val, 2 ) + Math.Pow( dist.err / dist.val, 2 ) );
 
-    Outfile.WriteLine( RotSpeed.val + "," + RotSpeed.err + "," + lum + "," + lum_err );
+    Outfile.WriteLine( name + "," + RotSpeed.val + "," + RotSpeed.err + "," + lum + "," + lum_err );
 
 #else
-    double lum = Math.Exp( A.val ) * Math.Pow( RotSpeed.val, B.val );
-    double lum_err = Math.Pow( A.err, 2 ) + Math.Pow( RotSpeed.err * B.val / RotSpeed.val, 2 ) + Math.Pow( B.err * Math.Log( RotSpeed.val ), 2 );
+    double lum = A.val * Math.Pow( RotSpeed.val, B.val );
+    double lum_err = Math.Pow( A.err / A.val, 2 ) + Math.Pow( RotSpeed.err * B.val / RotSpeed.val, 2 ) + Math.Pow( B.err * Math.Log( RotSpeed.val ), 2 );
     lum_err = lum * Math.Sqrt( lum_err );
 
-    double dist = Math.Sqrt( 4 * Math.PI * lum / FluxDensity.val );
+    Outfile.WriteLine( name + "," + RotSpeed.val + "," + RotSpeed.err + "," + lum + "," + lum_err );
+
+    double dist = Math.Sqrt( lum / ( 4 * Math.PI * FluxDensity.val ) );
     double dist_err = Math.Pow( .5f * dist * lum_err / lum, 2 ) + Math.Pow( .5f * dist * FluxDensity.err / FluxDensity.val, 2 );
     dist_err = Math.Sqrt( dist_err );
+
+    dist *= 3.2408E-23;
+    dist_err *= 3.2408E-23;
+
 
     Console.WriteLine( name + ": " + dist + " +/- " + dist_err );
 #endif
 }
-#if KnownDistances
 Outfile.Close();
-#endif
 
 // structures
 struct pt

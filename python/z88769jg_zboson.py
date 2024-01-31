@@ -30,10 +30,11 @@ from scipy.odr import ODR, Model, Data, RealData;
 import math;
 
 FILE_NAME = '../data.csv';
+FILE_NAME_PREDICTED = "../data_predicted.csv";
 
 PLANCK_CONST = 6.582119569e-25; #GeV*s
 
-def luminosity( beta, velocity ):
+def luminosity_curvefit( velocity, beta0, beta1 ):
     """calculates tully fisher relation for given rotational velocity
 
     Args:
@@ -43,9 +44,9 @@ def luminosity( beta, velocity ):
     Returns:
         float or NDArray: luminosity of a galaxy with the given rotational velocity
     """
-    if ( beta[ 0 ].ndim == 3 and velocity.ndim == 1 ):
+    if ( beta0.ndim == 3 and velocity.ndim == 1 ):
         velocity = np.reshape( velocity, (len( velocity ),1,1) );
-    return beta[ 0 ] + beta[ 1 ] * velocity;
+    return np.log( beta0 ) + beta1 * velocity;
 
 def chi_squared( function, data, *params ):
     """
@@ -59,7 +60,7 @@ def chi_squared( function, data, *params ):
     Returns:
         float: total chi-squared value
     """
-    predicted = function( params, data[ 0 ] );
+    predicted = function( data[ 0 ], *params );
     observed = data[ 1 ];
     error = data[ 2 ];
     if ( predicted.ndim == 3 ):
@@ -87,6 +88,7 @@ def read_data(file_name):
         exit( 0 );
         
     data = np.zeros( (0, 4) );
+    names = [];
     SKIPPED_FIRST_LINE = False
     for line in input_file:
         if ( not SKIPPED_FIRST_LINE ):
@@ -94,24 +96,16 @@ def read_data(file_name):
 
         else:
             split_up = line.split( ',' );
-            try:
-                temp = np.array([float(split_up[0]), float(split_up[1]), float(split_up[2]), float(split_up[3])]);
-                for i in range( 0, 4 ):
-                    if ( math.isnan( temp[ i ] ) or 0 == temp[ i ] ):
-                        temp = None;
-                if ( temp is None ):
-                    continue;
-            except:
-                print( 'Bad data found! Make sure your data is numeric, >0, and has three comma-separated columns.' );
-                continue;
+            temp = np.array([float(split_up[1]), float(split_up[2]), float(split_up[3]), float(split_up[4])]);
+            names.append( split_up[ 0 ] );
 
             data = np.vstack( (data, temp) );
 
     input_file.close()
 
-    return data
+    return data, names
 
-def plot_result( xdata, ydata, sigma_x, sigma_y, result, sigma_params ):
+def plot_result( xdata, ydata, sigma_x, sigma_y, result, pred_x, pred_y, pred_sigma_x, pred_sigma_y, sigma_params, labels, pred_labels ):
     """plot data and line of best fit
 
     Args:
@@ -124,10 +118,30 @@ def plot_result( xdata, ydata, sigma_x, sigma_y, result, sigma_params ):
     fig = plt.figure();
 
     ax = fig.add_subplot( 111 );
+    
+    a1 = np.array([xdata, ydata, sigma_x, sigma_y]);
+    a2 = np.array([pred_x, pred_y, pred_sigma_x, pred_sigma_y])
+    a1 = np.sort( a1 );
+    a2 = np.sort( a2 );
+    
+    xdata = a1[ 0 ];
+    ydata = a1[ 1 ];
+    sigma_x = a1[ 2 ];
+    sigma_y = a1[ 3 ];
+    
+    pred_x = a2[ 0 ];
+    pred_y = a2[ 1 ];
+    pred_sigma_x = a2[ 2 ];
+    pred_sigma_y = a2[ 3 ];
 
     ax.errorbar( xdata, ydata, xerr=sigma_x, yerr=sigma_y, fmt='o' );
+    for i in range( 0, len( labels ) ):
+        ax.annotate( labels[ i ], (xdata[ i ], ydata[ i ] + .1 * (-1)**(i) ) );
+    ax.errorbar( pred_x, pred_y, xerr=pred_sigma_x, yerr=pred_sigma_y, fmt='o' );
+    for i in range( 0, len( pred_labels ) ):
+        ax.annotate( pred_labels[ i ], (pred_x[ i ], pred_y[ i ] + 1 * (-1)**(i) ) );
     x_line = np.linspace( np.min( xdata ), np.max( xdata ), 1000000 );
-    ax.plot( x_line, luminosity( result, x_line ) );
+    ax.plot( x_line, luminosity_curvefit( x_line, *result ) );
     
     ax.set_title( 'Tully Fisher Relation' );
     ax.set_xlabel( 'Rotational Velocity km/s' );
@@ -139,23 +153,32 @@ def plot_result( xdata, ydata, sigma_x, sigma_y, result, sigma_params ):
 
 ## Read Data From Files ##
 data = read_data( FILE_NAME );
+data_predicted = read_data( FILE_NAME_PREDICTED );
 
-xdata = np.log( data[ :, 0 ] );
-sigma_x = data[ :, 1 ] / np.exp( xdata );
-ydata = np.log( data[ :, 2 ] );
-sigma_y = data[ :, 3 ] / np.exp( ydata );
+xdata = np.log( data[ 0 ][ :, 0 ] );
+sigma_x = data[ 0 ][ :, 1 ] / np.exp( xdata );
+ydata = np.log( data[ 0 ][ :, 2 ] );
+sigma_y = data[ 0 ][ :, 3 ] / np.exp( ydata );
 
+pred_x = np.log( data_predicted[ 0 ][ :, 0 ] );
+pred_sigma_x = data_predicted[ 0 ][ :, 1 ] / np.exp( pred_x );
+pred_y = np.log( data_predicted[ 0 ][ :, 2 ] );
+pred_sigma_y = data_predicted[ 0 ][ :, 3 ] / np.exp( pred_y );
 
-odr_data = RealData( xdata, ydata, sigma_x, sigma_y  );
-odr_model = Model( luminosity );
-odr = ODR( odr_data, odr_model, beta0 = [ 1, 6 ] );
-odr.set_job( fit_type=2 );
-output = odr.run();
+# odr_data = RealData( xdata, ydata, sigma_x, sigma_y  );
+# odr_model = Model( luminosity );
+# odr = ODR( odr_data, odr_model, beta0 = [ 1, 6 ] );
+# odr.set_job( fit_type=2 );
+# output = odr.run();
 
-parameters = output.beta;
-sigmas = output.sd_beta;
+# parameters = output.beta;
+# sigmas = output.sd_beta;
+
+res = sp.curve_fit( luminosity_curvefit, xdata, ydata, None, sigma_y, True );
+parameters = res[ 0 ];
+sigmas = np.sqrt( np.diag( res[ 1 ] ) );
 
 ## Plot Results ##
 print( str( parameters[ 0 ] ) + " +/- " + str( sigmas[ 0 ] ) )
 print( str( parameters[ 1 ] ) + " +/- " + str( sigmas[ 1 ] ) )
-plot_result( xdata, ydata, sigma_x, sigma_y, parameters, sigmas );
+plot_result( xdata, ydata, sigma_x, sigma_y, parameters, pred_x, pred_y, pred_sigma_x, pred_sigma_y, sigmas, data[ 1 ], data_predicted[ 1 ] );
