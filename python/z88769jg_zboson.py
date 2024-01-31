@@ -119,21 +119,6 @@ def plot_result( xdata, ydata, sigma_x, sigma_y, result, pred_x, pred_y, pred_si
 
     ax = fig.add_subplot( 111 );
     
-    a1 = np.array([xdata, ydata, sigma_x, sigma_y]);
-    a2 = np.array([pred_x, pred_y, pred_sigma_x, pred_sigma_y])
-    a1 = np.sort( a1 );
-    a2 = np.sort( a2 );
-    
-    xdata = a1[ 0 ];
-    ydata = a1[ 1 ];
-    sigma_x = a1[ 2 ];
-    sigma_y = a1[ 3 ];
-    
-    pred_x = a2[ 0 ];
-    pred_y = a2[ 1 ];
-    pred_sigma_x = a2[ 2 ];
-    pred_sigma_y = a2[ 3 ];
-
     ax.errorbar( xdata, ydata, xerr=sigma_x, yerr=sigma_y, fmt='o' );
     for i in range( 0, len( labels ) ):
         ax.annotate( labels[ i ], (xdata[ i ], ydata[ i ] + .1 * (-1)**(i) ) );
