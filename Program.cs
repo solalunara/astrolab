@@ -211,8 +211,10 @@ foreach ( (pt[] x, string name) in GetXYDataForEachFile( GetListData( "DKList" )
 #else
 StreamWriter Outfile = new( "data_predicted.csv" );
 Outfile.WriteLine( "Data - RotVelocity - RotVelocity Error - Luminosity - Luminosity Error - Distance - Distance Error - Velocity - Velocity Error" );
-statval A = (4.217957e+01f, 7.783958e+00f);
-statval B = (4.050670926540902f, 1.4944752485181898f);
+//statval A = (4.217957e+01f, 7.783958e+00f);
+//statval B = (4.050670926540902f, 1.4944752485181898f);
+statval B = (7.735729998874423f, 0.4130204204558944f);
+statval A = (6.0506603477263695e-18f, 1.3208230713361719e-17f);
 foreach ( (pt[] x, string name) in GetXYDataForEachFile( GetListData( "DUList" ) ) )
 #endif
 {
@@ -222,9 +224,6 @@ foreach ( (pt[] x, string name) in GetXYDataForEachFile( GetListData( "DUList" )
     statval RotSpeed = GetRotSpeed( HWHM, incl );
     statval FluxDensity = fluxdensities[ name ];
 
-    RotSpeed.val /= 29.78f;
-    RotSpeed.err /= 29.78f;
-
 #if KnownDistances
     statval dist = GetDistance( distance_moduli[ name ] );
     double distf = dist.val * 3.2408E-23;
@@ -232,26 +231,26 @@ foreach ( (pt[] x, string name) in GetXYDataForEachFile( GetListData( "DUList" )
     double lum = FluxDensity.val * 4d * Math.PI * dist.val * dist.val;
     double lum_err = lum * Math.Sqrt( Math.Pow( FluxDensity.err / FluxDensity.val, 2 ) + Math.Pow( dist.err / dist.val, 2 ) );
 
-    lum /= 3.828e26;
-    lum_err /= 3.828e26;
+    lum /= 1e27;
+    lum_err /= 1e27;
 
     Outfile.WriteLine( name + "," + RotSpeed.val + "," + RotSpeed.err + "," + lum + "," + lum_err  + "," + distf + "," + dist_errf + "," + WeightedMean.val + "," + WeightedMean.err );
 
 #else
-    //double lum = A.val * Math.Pow( RotSpeed.val, B.val );
-    //double lum_err = Math.Pow( A.err / A.val, 2 ) + Math.Pow( RotSpeed.err * B.val / RotSpeed.val, 2 ) + Math.Pow( B.err * Math.Log( RotSpeed.val ), 2 );
-    //lum_err = lum * Math.Sqrt( lum_err );
-    double lum_log = A.val + B.val * Math.Log( RotSpeed.val );
-    double lum_log_low = ( A.val - A.err ) + ( B.val + B.err ) * Math.Log( RotSpeed.val - RotSpeed.err );
-    double lum_log_high = ( A.val + A.err ) + ( B.val - B.err ) * Math.Log( RotSpeed.val + RotSpeed.err );
-    double lum_log_err = 0.5 * ( lum_log_high - lum_log_low );
+    double lum = A.val * Math.Pow( RotSpeed.val, B.val );
+    double lum_err = Math.Pow( A.err / A.val, 2 ) + Math.Pow( RotSpeed.err * B.val / RotSpeed.val, 2 ) + Math.Pow( B.err * Math.Log( RotSpeed.val ), 2 );
+    lum_err = lum * Math.Sqrt( lum_err );
+
+    lum *= 1e27;
+    lum_err *= 1e27;
+
+    //double lum_log = A.val + B.val * Math.Log( RotSpeed.val );
+    //double lum_log_low = ( A.val - A.err ) + ( B.val + B.err ) * Math.Log( RotSpeed.val - RotSpeed.err );
+    //double lum_log_high = ( A.val + A.err ) + ( B.val - B.err ) * Math.Log( RotSpeed.val + RotSpeed.err );
+    //double lum_log_err = 0.5 * ( lum_log_high - lum_log_low );
     
-    double lum = Math.Exp( lum_log );
-    double lum_err = lum * lum_log_err;
-
-    lum /= 3.828e26;
-    lum_err /= 3.828e26;
-
+    //double lum = Math.Exp( lum_log );
+    //double lum_err = lum * lum_log_err;
 
     double dist = Math.Sqrt( lum / ( 4 * Math.PI * FluxDensity.val ) );
     double dist_err = Math.Pow( .5f * dist * lum_err / lum, 2 ) + Math.Pow( .5f * dist * FluxDensity.err / FluxDensity.val, 2 );
@@ -259,8 +258,10 @@ foreach ( (pt[] x, string name) in GetXYDataForEachFile( GetListData( "DUList" )
 
     dist *= 3.2408E-23;
     dist_err *= 3.2408E-23;
+    
+    Outfile.WriteLine( name + "," + RotSpeed.val + "," + RotSpeed.err + "," + lum * 1e-27 + "," + lum_err * 1e-27 + "," + dist + "," + dist_err + "," + WeightedMean.val + "," + WeightedMean.err );
 
-    Outfile.WriteLine( name + "," + RotSpeed.val + "," + RotSpeed.err + "," + lum + "," + lum_err + "," + dist + "," + dist_err + "," + WeightedMean.val + "," + WeightedMean.err );
+    dist_err /= 2;
 
     Console.WriteLine( name + ": " + dist + " +/- " + dist_err );
 #endif

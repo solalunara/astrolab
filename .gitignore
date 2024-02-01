@@ -1,2 +1,9 @@
 bin/
 obj/
+python/bin/
+python/include/
+python/lib/
+python/lib64/
+python/share/
+python/lib64
+python/pyvenv.cfg

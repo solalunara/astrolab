@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt;
 import scipy.optimize as sp;
 from scipy.odr import ODR, Model, Data, RealData;
 import math;
+from adjustText import adjust_text;
 
 FILE_NAME = '../data.csv';
 FILE_NAME_PREDICTED = "../data_predicted.csv";
@@ -121,22 +122,20 @@ def plot_result( xdata, ydata, sigma_x, sigma_y, result, pred_x, pred_y, pred_si
     ax = fig.add_subplot( 111 );
     
     ax.errorbar( xdata, ydata, xerr=sigma_x, yerr=sigma_y, fmt='o', label="known distance galaxies" );
-    for i in range( 0, len( labels ) ):
-        ax.annotate( labels[ i ], (xdata[ i ] + .001, ydata[ i ] + .1), fontsize=5 );
-    ax.errorbar( pred_x, pred_y, yerr=pred_sigma_y, fmt='o', label="predicted distance galaxies" );
-    for i in range( 0, len( pred_labels ) ):
-        ax.annotate( pred_labels[ i ], (pred_x[ i ] + .001, pred_y[ i ] + .1), fontsize=5 );
+    ax.errorbar( pred_x, pred_y, yerr=pred_sigma_y / 2, fmt='o', label="predicted distance galaxies" );
     x_line = np.linspace( np.min( xdata ), np.max( xdata ), 1000000 );
     ax.plot( x_line, luminosity( result, x_line ), label="line of best fit" );
     
-    result[ 0 ] += sigma_params[ 0 ];
-    ax.plot( x_line, luminosity( result, x_line ), color="r", label="line of worst fit" );
-    result[ 0 ] -= 2*sigma_params[ 0 ];
-    ax.plot( x_line, luminosity( result, x_line ), color="r", label="line of worst fit" );
+    texts = [ax.text(xdata[i], ydata[i], labels[i], ha='center', va='center', fontsize=8) for i in range(len(labels))]
+    pred_texts = [ax.text(pred_x[i], pred_y[i], pred_labels[i], ha='center', va='center', fontsize=8) for i in range(len(pred_labels))]
+    for i in range( len( pred_texts ) ):
+        texts.append( pred_texts[ i ] );
+    adjust_text(texts, arrowprops=dict(arrowstyle='-', color='red', lw=0.5))
+    #adjust_text(pred_texts, arrowprops=dict(arrowstyle='->', color='red'))
     
     ax.set_title( 'Tully Fisher Relation' );
     ax.set_xlabel( 'Rotational Velocity km/s' );
-    ax.set_ylabel( 'Luminosity Density W/Hz' );
+    ax.set_ylabel( 'Luminosity Density W/Hz E+27' );
     ax.legend();
     plt.savefig( 'TullyFisher.png' );
     plt.show();
@@ -167,14 +166,14 @@ pred_vel_err = data_predicted[ 0 ][ :, 7 ];
 
 odr_data = RealData( xdata, ydata, sigma_x, sigma_y  );
 odr_model = Model( luminosity );
-odr = ODR( odr_data, odr_model, beta0 = [ 6, 1 ] );
+odr = ODR( odr_data, odr_model, beta0 = [ 6, 1e-15 ], maxit=100000 );
 odr.set_job( fit_type=0 );
 output = odr.run();
 
-parameters = output.beta;
-sigmas = output.sd_beta;
-
 residuals = output.res_var;
+parameters = output.beta;
+sigmas = output.sd_beta / np.sqrt( output.res_var );
+
 
 #res = sp.curve_fit( luminosity_curvefit, xdata, ydata, None, sigma_y, True );
 #parameters = res[ 0 ];
@@ -191,25 +190,30 @@ fig = plt.figure();
 ax = fig.add_subplot( 111 );
 
 ax.errorbar( dist, vel, xerr=dist_err, yerr=vel_err, fmt='o', label="known distance galaxies" );
-ax.errorbar( pred_dist, pred_vel, xerr=pred_dist_err, yerr=pred_vel_err, fmt='o', label="unknown distance galaxies" );
-for i in range( 0, len( data[ 1 ] ) ):
-    ax.annotate( data[ 1 ][ i ], (dist[ i ] + .001, vel[ i ] + .1), fontsize=5 );
-for i in range( 0, len( data_predicted[ 1 ] ) ):
-    ax.annotate( data_predicted[ 1 ][ i ], (pred_dist[ i ] + .001, pred_vel[ i ] + .1), fontsize=5 );
+ax.errorbar( pred_dist, pred_vel, xerr=pred_dist_err / 2, yerr=pred_vel_err, fmt='o', label="unknown distance galaxies" );
 
 odr_data = RealData( np.append( dist, pred_dist ), np.append( vel, pred_vel ), np.append( dist_err, pred_dist_err ), np.append( vel_err, pred_vel_err ) );
 odr_model = Model( linear );
-odr = ODR( odr_data, odr_model, beta0 = [ 6, 1 ] );
+odr = ODR( odr_data, odr_model, beta0 = [ 4, 1 ] );
 odr.set_job( fit_type=0 );
 output = odr.run();
-#output.pprint();
 
 parameters = output.beta;
-sigmas = output.sd_beta;
+sigmas = output.sd_beta / np.sqrt( output.res_var );
 residuals = output.res_var;
 
-x_line = np.linspace( np.min( np.append( dist, pred_dist ) ), np.max( np.append( dist, pred_dist ) ), 1000000 );
+print( str( residuals ) );
+print( str( parameters[ 0 ] ) + " +/- " + str( sigmas[ 0 ] ) )
+print( str( parameters[ 1 ] ) + " +/- " + str( sigmas[ 1 ] ) )
+
+x_line = np.linspace( np.min( np.append( dist, pred_dist ) ), np.max( dist ), 1000000 );
 ax.plot( x_line, linear( parameters, x_line ), label="line of best fit" );
+
+texts = [ax.text(dist[i], vel[i], data[ 1 ][i], ha='center', va='center', fontsize=8) for i in range(len(data[ 1 ]))]
+pred_texts = [ax.text(pred_dist[i], pred_vel[i], data_predicted[ 1 ][i], ha='center', va='center', fontsize=8) for i in range(len(data_predicted[ 1 ]))]
+for i in range( len( pred_texts ) ):
+    texts.append( pred_texts[ i ] );
+adjust_text(texts, arrowprops=dict(arrowstyle='-', color='red', lw=0.5))
 
 
 ax.set_title( 'Universal Expansion Relation' );
