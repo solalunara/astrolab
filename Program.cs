@@ -113,6 +113,18 @@ static statval GetHWHM( pt[] xydata, float SideStdDev )
     return (HWHM, HWHM_Error);
 }
 
+static statval GetWeightedMean( pt[] xydata )
+{
+    float num = 0;
+    float dnm = 0;
+    for ( int i = 0; i < xydata.Length; ++i )
+    {
+        num += xydata[ i ].x * xydata[ i ].y;
+        dnm += xydata[ i ].y;
+    }
+    return (num/dnm, 1/dnm);
+}
+
 static ((pt x, int i) left, (pt x, int i) right) SideCreep( pt[] xydata, float Value )
 {
     int left, right;
@@ -194,33 +206,52 @@ var distance_moduli = GetStatVarData( "distance-moduli" );
 //data manip
 #if KnownDistances
 StreamWriter Outfile = new( "data.csv" );
-Outfile.WriteLine( "Data - RotVelocity - RotVelocity Error - Luminosity - Luminosity Error" );
+Outfile.WriteLine( "Data - RotVelocity - RotVelocity Error - Luminosity - Luminosity Error - Distance - Distance Error - Velocity - Velocity Error" );
 foreach ( (pt[] x, string name) in GetXYDataForEachFile( GetListData( "DKList" ) ) )
 #else
 StreamWriter Outfile = new( "data_predicted.csv" );
-Outfile.WriteLine( "Data - RotVelocity - RotVelocity Error - Luminosity - Luminosity Error" );
-statval A = (22927942737088.72f, 31820596411879.11f);
-statval B = (6.203778507422214f, 0.2678953507033762f);
+Outfile.WriteLine( "Data - RotVelocity - RotVelocity Error - Luminosity - Luminosity Error - Distance - Distance Error - Velocity - Velocity Error" );
+statval A = (4.217957e+01f, 7.783958e+00f);
+statval B = (4.050670926540902f, 1.4944752485181898f);
 foreach ( (pt[] x, string name) in GetXYDataForEachFile( GetListData( "DUList" ) ) )
 #endif
 {
     statval HWHM = GetHWHM( x, GetStdDev( x ) );
+    statval WeightedMean = GetWeightedMean( x );
     statval incl = inclinations[ name ];
     statval RotSpeed = GetRotSpeed( HWHM, incl );
     statval FluxDensity = fluxdensities[ name ];
+
+    RotSpeed.val /= 29.78f;
+    RotSpeed.err /= 29.78f;
+
 #if KnownDistances
     statval dist = GetDistance( distance_moduli[ name ] );
+    double distf = dist.val * 3.2408E-23;
+    double dist_errf = dist.err * 3.2408E-23;
     double lum = FluxDensity.val * 4d * Math.PI * dist.val * dist.val;
     double lum_err = lum * Math.Sqrt( Math.Pow( FluxDensity.err / FluxDensity.val, 2 ) + Math.Pow( dist.err / dist.val, 2 ) );
 
-    Outfile.WriteLine( name + "," + RotSpeed.val + "," + RotSpeed.err + "," + lum + "," + lum_err );
+    lum /= 3.828e26;
+    lum_err /= 3.828e26;
+
+    Outfile.WriteLine( name + "," + RotSpeed.val + "," + RotSpeed.err + "," + lum + "," + lum_err  + "," + distf + "," + dist_errf + "," + WeightedMean.val + "," + WeightedMean.err );
 
 #else
-    double lum = A.val * Math.Pow( RotSpeed.val, B.val );
-    double lum_err = Math.Pow( A.err / A.val, 2 ) + Math.Pow( RotSpeed.err * B.val / RotSpeed.val, 2 ) + Math.Pow( B.err * Math.Log( RotSpeed.val ), 2 );
-    lum_err = lum * Math.Sqrt( lum_err );
+    //double lum = A.val * Math.Pow( RotSpeed.val, B.val );
+    //double lum_err = Math.Pow( A.err / A.val, 2 ) + Math.Pow( RotSpeed.err * B.val / RotSpeed.val, 2 ) + Math.Pow( B.err * Math.Log( RotSpeed.val ), 2 );
+    //lum_err = lum * Math.Sqrt( lum_err );
+    double lum_log = A.val + B.val * Math.Log( RotSpeed.val );
+    double lum_log_low = ( A.val - A.err ) + ( B.val + B.err ) * Math.Log( RotSpeed.val - RotSpeed.err );
+    double lum_log_high = ( A.val + A.err ) + ( B.val - B.err ) * Math.Log( RotSpeed.val + RotSpeed.err );
+    double lum_log_err = 0.5 * ( lum_log_high - lum_log_low );
+    
+    double lum = Math.Exp( lum_log );
+    double lum_err = lum * lum_log_err;
 
-    Outfile.WriteLine( name + "," + RotSpeed.val + "," + RotSpeed.err + "," + lum + "," + lum_err );
+    lum /= 3.828e26;
+    lum_err /= 3.828e26;
+
 
     double dist = Math.Sqrt( lum / ( 4 * Math.PI * FluxDensity.val ) );
     double dist_err = Math.Pow( .5f * dist * lum_err / lum, 2 ) + Math.Pow( .5f * dist * FluxDensity.err / FluxDensity.val, 2 );
@@ -229,11 +260,13 @@ foreach ( (pt[] x, string name) in GetXYDataForEachFile( GetListData( "DUList" )
     dist *= 3.2408E-23;
     dist_err *= 3.2408E-23;
 
+    Outfile.WriteLine( name + "," + RotSpeed.val + "," + RotSpeed.err + "," + lum + "," + lum_err + "," + dist + "," + dist_err + "," + WeightedMean.val + "," + WeightedMean.err );
 
     Console.WriteLine( name + ": " + dist + " +/- " + dist_err );
 #endif
 }
 Outfile.Close();
+
 
 // structures
 struct pt
